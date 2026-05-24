@@ -12,6 +12,70 @@ db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 
+# ===== STYLE =====
+STYLE = """
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{
+    margin:0;
+    font-family:Arial,sans-serif;
+    background:#f5f5f5;
+    max-width:700px;
+    margin:auto;
+    padding:20px;
+}
+h1,h2{
+    text-align:center;
+}
+.card{
+    background:white;
+    padding:20px;
+    border-radius:15px;
+    box-shadow:0 2px 10px rgba(0,0,0,.1);
+}
+input,button{
+    width:100%;
+    padding:14px;
+    margin:8px 0;
+    border-radius:10px;
+    border:1px solid #ccc;
+    box-sizing:border-box;
+    font-size:16px;
+}
+button{
+    background:#0084ff;
+    color:white;
+    border:none;
+}
+a{
+    text-decoration:none;
+    color:#0084ff;
+}
+.user{
+    display:block;
+    background:white;
+    padding:15px;
+    margin:8px 0;
+    border-radius:10px;
+}
+#chat{
+    border:1px solid #ddd;
+    background:white;
+    height:60vh;
+    overflow:auto;
+    padding:10px;
+    border-radius:12px;
+}
+.msg{
+    padding:10px;
+    margin:8px 0;
+    border-radius:12px;
+    background:#e9e9eb;
+}
+</style>
+"""
+
+
 # ===== DATABASE =====
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -47,17 +111,18 @@ def register():
         )
         db.session.add(user)
         db.session.commit()
-
         return redirect("/login")
 
-    return """
-    <h1>Mashion Register</h1>
-    <form method="post">
-      <input name="username" placeholder="логин"><br><br>
-      <input name="password" type="password" placeholder="пароль"><br><br>
-      <button>Создать</button>
-    </form>
-    <a href="/login">Войти</a>
+    return STYLE + """
+    <div class="card">
+      <h1>Mashion Register</h1>
+      <form method="post">
+        <input name="username" placeholder="логин">
+        <input name="password" type="password" placeholder="пароль">
+        <button>Создать</button>
+      </form>
+      <a href="/login">Войти</a>
+    </div>
     """
 
 
@@ -76,14 +141,16 @@ def login():
 
         return "Неверный логин или пароль"
 
-    return """
-    <h1>Mashion Login</h1>
-    <form method="post">
-      <input name="username"><br><br>
-      <input name="password" type="password"><br><br>
-      <button>Войти</button>
-    </form>
-    <a href="/register">Регистрация</a>
+    return STYLE + """
+    <div class="card">
+      <h1>Mashion Login</h1>
+      <form method="post">
+        <input name="username" placeholder="логин">
+        <input name="password" type="password" placeholder="пароль">
+        <button>Войти</button>
+      </form>
+      <a href="/register">Регистрация</a>
+    </div>
     """
 
 
@@ -103,18 +170,20 @@ def users():
     me = session["user"]
     users = User.query.filter(User.username != me).all()
 
-    html = "<h1>Mashion Users</h1>"
+    html = STYLE + "<div class='card'>"
+    html += "<h1>Mashion Users</h1>"
     html += "<a href='/logout'>Выйти</a><br><br>"
     html += """
     <form action="/search">
       <input name="q" placeholder="найти по логину">
       <button>Найти</button>
-    </form><br>
+    </form>
     """
 
     for u in users:
-        html += f"<a href='/chat/{u.username}'>{u.username}</a><br>"
+        html += f"<a class='user' href='/chat/{u.username}'>{u.username}</a>"
 
+    html += "</div>"
     return html
 
 
@@ -143,14 +212,16 @@ def chat(username):
     me = session["user"]
     room = "_".join(sorted([me, username]))
 
-    return render_template_string("""
-    <h2>Чат с {{ username }}</h2>
-    <a href="/users">Назад</a><br><br>
+    return render_template_string(STYLE + """
+    <div class="card">
+      <h2>Чат с {{ username }}</h2>
+      <a href="/users">← Назад</a><br><br>
 
-    <div id="chat" style="border:1px solid black;height:300px;overflow:auto;padding:10px;"></div><br>
+      <div id="chat"></div><br>
 
-    <input id="msg">
-    <button onclick="send()">Send</button>
+      <input id="msg" placeholder="Введите сообщение">
+      <button onclick="send()">Send</button>
+    </div>
 
 <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
 <script>
@@ -161,13 +232,12 @@ socket.emit("join", room);
 
 socket.on("message", function(data){
     let box = document.getElementById("chat");
-    box.innerHTML += "<p>"+data+"</p>";
+    box.innerHTML += "<div class='msg'>"+data+"</div>";
     box.scrollTop = box.scrollHeight;
 });
 
 function send(){
     let text = document.getElementById("msg").value;
-
     if(text.trim() === "") return;
 
     socket.emit("message", {
@@ -190,7 +260,6 @@ def on_join(room):
 @socketio.on("message")
 def on_message(data):
     username = session.get("user", "anon")
-
     emit(
         "message",
         f"{username}: {data['text']}",
