@@ -1,274 +1,190 @@
-from flask import Flask, request, redirect, session, render_template_string
-from flask_sqlalchemy import SQLAlchemy
-from flask_socketio import SocketIO, emit, join_room
-from werkzeug.security import generate_password_hash, check_password_hash
-import os
+from flask import Flask
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "mashion_secret"
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///mashion.db"
 
-db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
-
-
-# ===== STYLE =====
-STYLE = """
-<meta name="viewport" content="width=device-width, initial-scale=1">
+HTML = """
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0e14">
+<title>Mashion — Проект закрыт</title>
 <style>
-body{
-    margin:0;
-    font-family:Arial,sans-serif;
-    background:#f5f5f5;
-    max-width:700px;
-    margin:auto;
-    padding:20px;
-}
-h1,h2{
-    text-align:center;
-}
-.card{
-    background:white;
-    padding:20px;
-    border-radius:15px;
-    box-shadow:0 2px 10px rgba(0,0,0,.1);
-}
-input,button{
-    width:100%;
-    padding:14px;
-    margin:8px 0;
-    border-radius:10px;
-    border:1px solid #ccc;
-    box-sizing:border-box;
-    font-size:16px;
-}
-button{
-    background:#0084ff;
-    color:white;
-    border:none;
-}
-a{
-    text-decoration:none;
-    color:#0084ff;
-}
-.user{
-    display:block;
-    background:white;
-    padding:15px;
-    margin:8px 0;
-    border-radius:10px;
-}
-#chat{
-    border:1px solid #ddd;
-    background:white;
-    height:60vh;
-    overflow:auto;
-    padding:10px;
-    border-radius:12px;
-}
-.msg{
-    padding:10px;
-    margin:8px 0;
-    border-radius:12px;
-    background:#e9e9eb;
-}
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html, body {
+    height: 100%;
+    width: 100%;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0a0e14;
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(255, 68, 68, 0.15), transparent 50%),
+      radial-gradient(circle at 80% 100%, rgba(77, 157, 255, 0.1), transparent 50%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .box {
+    width: 100%;
+    max-width: 440px;
+    background: rgba(23, 33, 43, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 68, 68, 0.25);
+    border-radius: 24px;
+    padding: 44px 24px 32px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(255, 68, 68, 0.08);
+    animation: fadeIn 0.8s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .icon {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff4444, #c92b2b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 44px;
+    margin: 0 auto 24px;
+    box-shadow: 0 8px 32px rgba(255, 68, 68, 0.4);
+    animation: pulse 2.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 8px 32px rgba(255, 68, 68, 0.4); }
+    50% { transform: scale(1.05); box-shadow: 0 8px 48px rgba(255, 68, 68, 0.6); }
+  }
+  .icon svg { width: 44px; height: 44px; stroke: #fff; stroke-width: 3; }
+  h1 {
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    color: #ff4444;
+    letter-spacing: -0.5px;
+  }
+  .divider {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #ff4444, #c92b2b);
+    border-radius: 2px;
+    margin: 16px auto 24px;
+  }
+  p {
+    color: #8b949e;
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 12px;
+    padding: 0 4px;
+    text-align: left;
+  }
+  p.center { text-align: center; }
+  p.highlight { color: #e6edf3; font-weight: 500; }
+  .reason {
+    background: rgba(255, 68, 68, 0.08);
+    border-left: 3px solid #ff4444;
+    padding: 14px 16px;
+    border-radius: 8px;
+    margin: 18px 0;
+    text-align: left;
+  }
+  .reason p { margin-bottom: 8px; }
+  .reason p:last-child { margin-bottom: 0; }
+  .support {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 68, 68, 0.15);
+  }
+  .support .label {
+    color: #6c7883;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .support a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #4d9dff, #2b6bc9);
+    color: #fff;
+    text-decoration: none;
+    padding: 12px 22px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(77, 157, 255, 0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .support a:active {
+    transform: scale(0.96);
+    box-shadow: 0 2px 8px rgba(77, 157, 255, 0.4);
+  }
+  .footer {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 68, 68, 0.1);
+    color: #6c7883;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
 </style>
+</head>
+<body>
+  <div class="box">
+    <div class="icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </div>
+
+    <h1>Мы закрываемся</h1>
+    <div class="divider"></div>
+
+    <p class="center highlight">Спасибо, кто был с нами. 🤝</p>
+
+    <div class="reason">
+      <p class="highlight">Причина закрытия:</p>
+      <p>Наш сервис уже не актуален.</p>
+      <p>В нём есть критические баги.</p>
+      <p>Проще создать новый проект.</p>
+      <p>Мы не можем его поддерживать.</p>
+    </div>
+
+    <p class="center">Возможно, мы не вернёмся.</p>
+
+    <div class="support">
+      <div class="label">Подробная информация</div>
+      <a href="https://t.me/mashion_support_bot" target="_blank">
+        🤝 @mashion_support_bot
+      </a>
+    </div>
+
+    <div class="footer">Mashion</div>
+  </div>
+</body>
+</html>
 """
 
+@app.route('/')
+def closed():
+    return HTML
 
-# ===== DATABASE =====
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True)
-    password = db.Column(db.String(200))
-
-
-with app.app_context():
-    db.create_all()
-
-
-# ===== HOME =====
-@app.route("/")
-def home():
-    if "user" in session:
-        return redirect("/users")
-    return redirect("/login")
-
-
-# ===== REGISTER =====
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-
-        if User.query.filter_by(username=username).first():
-            return "Логин уже занят"
-
-        user = User(
-            username=username,
-            password=generate_password_hash(password)
-        )
-        db.session.add(user)
-        db.session.commit()
-        return redirect("/login")
-
-    return STYLE + """
-    <div class="card">
-      <h1>Mashion Register</h1>
-      <form method="post">
-        <input name="username" placeholder="логин">
-        <input name="password" type="password" placeholder="пароль">
-        <button>Создать</button>
-      </form>
-      <a href="/login">Войти</a>
-    </div>
-    """
-
-
-# ===== LOGIN =====
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-
-        user = User.query.filter_by(username=username).first()
-
-        if user and check_password_hash(user.password, password):
-            session["user"] = username
-            return redirect("/users")
-
-        return "Неверный логин или пароль"
-
-    return STYLE + """
-    <div class="card">
-      <h1>Mashion Login</h1>
-      <form method="post">
-        <input name="username" placeholder="логин">
-        <input name="password" type="password" placeholder="пароль">
-        <button>Войти</button>
-      </form>
-      <a href="/register">Регистрация</a>
-    </div>
-    """
-
-
-# ===== LOGOUT =====
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect("/login")
-
-
-# ===== USERS =====
-@app.route("/users")
-def users():
-    if "user" not in session:
-        return redirect("/login")
-
-    me = session["user"]
-    users = User.query.filter(User.username != me).all()
-
-    html = STYLE + "<div class='card'>"
-    html += "<h1>Mashion Users</h1>"
-    html += "<a href='/logout'>Выйти</a><br><br>"
-    html += """
-    <form action="/search">
-      <input name="q" placeholder="найти по логину">
-      <button>Найти</button>
-    </form>
-    """
-
-    for u in users:
-        html += f"<a class='user' href='/chat/{u.username}'>{u.username}</a>"
-
-    html += "</div>"
-    return html
-
-
-# ===== SEARCH =====
-@app.route("/search")
-def search():
-    q = request.args.get("q")
-
-    if not q:
-        return redirect("/users")
-
-    user = User.query.filter_by(username=q).first()
-
-    if user:
-        return redirect(f"/chat/{q}")
-
-    return "Пользователь не найден"
-
-
-# ===== CHAT =====
-@app.route("/chat/<username>")
-def chat(username):
-    if "user" not in session:
-        return redirect("/login")
-
-    me = session["user"]
-    room = "_".join(sorted([me, username]))
-
-    return render_template_string(STYLE + """
-    <div class="card">
-      <h2>Чат с {{ username }}</h2>
-      <a href="/users">← Назад</a><br><br>
-
-      <div id="chat"></div><br>
-
-      <input id="msg" placeholder="Введите сообщение">
-      <button onclick="send()">Send</button>
-    </div>
-
-<script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
-<script>
-let socket = io();
-let room = "{{ room }}";
-
-socket.emit("join", room);
-
-socket.on("message", function(data){
-    let box = document.getElementById("chat");
-    box.innerHTML += "<div class='msg'>"+data+"</div>";
-    box.scrollTop = box.scrollHeight;
-});
-
-function send(){
-    let text = document.getElementById("msg").value;
-    if(text.trim() === "") return;
-
-    socket.emit("message", {
-        room: room,
-        text: text
-    });
-
-    document.getElementById("msg").value = "";
-}
-</script>
-    """, username=username, room=room)
-
-
-# ===== SOCKET =====
-@socketio.on("join")
-def on_join(room):
-    join_room(room)
-
-
-@socketio.on("message")
-def on_message(data):
-    username = session.get("user", "anon")
-    emit(
-        "message",
-        f"{username}: {data['text']}",
-        room=data["room"]
-    )
-
-
-# ===== START =====
-if __name__ == "__main__":
-    print("Mashion started 🚀")
-    port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
